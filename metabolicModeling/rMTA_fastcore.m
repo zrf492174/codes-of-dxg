@@ -104,7 +104,7 @@ fprintf('\tMetabolic model uploaded\n');
 % proposed by the authors of iMAT[4]. This is explained in detail in the rMTA 
 % article in detail [2].
 
-filename_onmics = 'fpkm_BRCA_control.txt';
+filename_onmics = 'fpkm_BRCA_cancer.txt';
 onmic_data = readtable(['Data/exampleData/',filesep,filename_onmics],'ReadVariableNames',true);
 
 rownames = onmic_data.Row;
@@ -155,6 +155,7 @@ optional_settings.medium = medium_example;% remove field if no constraint is pro
    already_mapped_tag, consensus_proportion, epsilon, optional_settings);
 
 tissueModel_scramble = model_out_consensus;
+save tissueModel_scramble.mat tissueModel_scramble
 %% 
 % The reconstructed model is sampled to obtain 2000 possible flux states, 
 % which can define a reference flux state. Sampling is computationaly expensive 
@@ -169,8 +170,12 @@ sampling_options.nStepsPerPoint  = 500;    	% (default = 200)
 
 % Now COBRAtoolbox include sampler
 tic
-%[modelSampling,samples] = sampleCbModel(tissueModel_scramble,'sampleFiles',sampling_method,sampling_options);
-load(['Data/exampleData/' filesep 'Samples20250115.mat']);
+if ~exist(['Data/exampleData/' filesep 'Samples20250115.mat'])
+    [modelSampling,samples] = sampleCbModel(tissueModel_scramble,'sampleFiles',sampling_method,sampling_options);
+    save Samples20250115.mat modelSampling samples
+else
+    load(['Data/exampleData/' filesep 'Samples20250115.mat']);
+end
 TIME.sampling = toc;
 
 sampleStats = calcSampleStats(samples);
@@ -220,14 +225,24 @@ Vref = sampleStats.mean;
 % Neccesary variables: 'gene','logFC','pval'
 % 'Gene_ID' must be the same nomenclature as the metabolic model
 % Study must be uploaded as DISEASE VS HEALTHY/CONTROL
-filename_differentially_expressed_genes = 'scramble-siRRM1_differ_exp_met_genes.txt';
+filename_differentially_expressed_genes = 'resultDiff.txt';
 logFC_requiered = 0; % change if necesary
 pval_requiered = 0.1; % change if necesary
 
-differ_genes = readtable(fullfile('Data',filename_differentially_expressed_genes),...
+differ_genes = readtable(fullfile('Data/exampleData/',filename_differentially_expressed_genes),...
     'ReadVariableNames',true);
 
-differ_genes.pval = differ_genes.adj_P_Val; % requiered variable by code
+% 使用 ismember 函数找到 A 表中每一行在 B 表第一列中的位置
+[~, loc] = ismember(differ_genes.Row,dico.SYMBOL);
+index = find(loc==71)
+loc(loc==0) = 71
+% 获取转换后的值
+differ_genes.ENTREZ_ID = dico.ENTREZ(loc);
+differ_genes.ENTREZ_ID(loc==71) = {''}
+differ_genes.ENTREZ_ID(index) = dico.ENTREZ(71)
+
+
+differ_genes.pval = differ_genes.padj; % requiered variable by code
 differ_genes.gene = differ_genes.ENTREZ_ID; % requiered variable by code
 
 % Here we should obtain an array similar to rxnHML, in which we have the
@@ -268,8 +283,8 @@ TIME.rMTA = toc
 % First of all, we are going to clean the Results folder and save the results 
 % from this tutorial
 
-delete(['Results' filesep 'H929_siRRM1_case.mat'])
-delete(['Results' filesep 'H929_siRRM1_case.xlsx'])
+delete(['Results' filesep 'cancer.mat'])
+delete(['Results' filesep 'cancer.xlsx'])
 save(['Data' filesep 'disease.mat'])
 %% 
 % Secondly, we can use information from Biomart to provide additional information 
